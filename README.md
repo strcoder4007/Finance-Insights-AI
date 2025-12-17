@@ -2,6 +2,8 @@
 
 Small demo system that ingests two P&L JSON sources (`data1.json`, `data2.json`), normalizes them into a single monthly source of truth in SQLite, exposes REST APIs, and supports NLQ + narrative answers via the OpenAI API (tool-backed; no invented numbers).
 
+![Finance Insights AI](image.png)
+
 ## Quick start (backend)
 
 ```bash
@@ -13,18 +15,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Ingest bundled data:
+## Quick start (data)(optional if app.db already present)
+Ingest bundled data if app.db is not generated yet:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/ingest \
   -H 'Content-Type: application/json' \
   -d '{"mode":"replace"}'
-```
-
-Example query:
-
-```bash
-curl "http://localhost:8000/api/v1/metrics/timeseries?metric=net_income&group_by=month"
 ```
 
 ## Quick start (frontend)
@@ -65,4 +62,3 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 ## Render blueprint (optional)
 
 `render.yaml` is included as a starting point. Update `CORS_ORIGINS` and `VITE_API_BASE_URL` to match your deployed URLs.
-
