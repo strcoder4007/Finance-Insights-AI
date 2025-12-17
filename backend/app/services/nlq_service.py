@@ -15,6 +15,10 @@ from app.services.query_service import QueryService
 
 logger = logging.getLogger(__name__)
 
+def _model_supports_temperature(model: str) -> bool:
+    # Some models (notably gpt-5*) only support the default temperature.
+    return not model.startswith("gpt-5")
+
 
 def _tool_result_summary(tool_name: str, result: Any) -> Any:
     if not isinstance(result, dict):
@@ -233,13 +237,15 @@ class NLQService:
         }
 
         for _ in range(8):
-            resp = self.client.chat.completions.create(
-                model=self.settings.openai_model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.2,
-            )
+            req: dict[str, Any] = {
+                "model": self.settings.openai_model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": "auto",
+            }
+            if _model_supports_temperature(self.settings.openai_model):
+                req["temperature"] = 0.2
+            resp = self.client.chat.completions.create(**req)
             msg = resp.choices[0].message
 
             if not msg.tool_calls:
