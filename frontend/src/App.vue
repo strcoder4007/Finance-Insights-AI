@@ -7,7 +7,6 @@ import { RouterLink, RouterView } from "vue-router";
     <header class="header panel">
       <div class="brand">
         <div class="title">Finance Insights AI</div>
-        <div class="subtitle muted">P&L analytics + NLQ (tool-backed)</div>
       </div>
       <nav class="nav">
         <RouterLink class="navlink" to="/chat">Chat</RouterLink>

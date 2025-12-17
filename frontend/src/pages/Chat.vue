@@ -18,10 +18,10 @@ const lastToolCalls = ref<unknown>(null);
 const canSend = computed(() => input.value.trim().length > 0 && !isSending.value);
 
 const exampleQuestions = [
+  "Tell me all the things you can do",
   "From 2024-01-01 to 2024-12-31, show net income by month.",
   "Compare net income between 2024-Q1 and 2024-Q2.",
   "From 2024-01-01 to 2024-12-31, show revenue_total by quarter.",
-  "From 2024-01-01 to 2024-12-31, break down operating_expense (high level).",
 ] as const;
 
 async function useExample(q: string) {

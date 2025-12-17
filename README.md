@@ -50,7 +50,7 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 - `PRIMARY_SOURCE` (`quickbooks` or `rootfi`, default: `rootfi`)
 - `MERGE_TOLERANCE` (absolute if `>= 1`, percent if `< 1`, default: `1.0`)
 - `OPENAI_API_KEY` (required for `/api/v1/chat`)
-- `OPENAI_MODEL` (default: `gpt-4o-mini`)
+- `OPENAI_MODEL` (default: `gpt-5-mini-2025-08-07`)
 - `CORS_ORIGINS` (comma-separated, default: `http://localhost:5173`)
 
 ## API endpoints
