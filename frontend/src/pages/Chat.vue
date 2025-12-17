@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
 import ChatThread from "../components/ChatThread.vue";
-import { chat, ingest } from "../api/client";
-
-type ChatMessage = { role: "user" | "assistant"; content: string };
+import ChartModal from "../components/ChartModal.vue";
+import MetricChart from "../components/MetricChart.vue";
+import { chat, ingest, type Metric } from "../api/client";
+import type { ChatMessage, MetricChartSpec } from "../types/chat";
 
 const sessionId = ref<string | null>(localStorage.getItem("fia_session_id"));
 const messages = ref<ChatMessage[]>([]);
@@ -14,15 +15,87 @@ const error = ref<string | null>(null);
 const showData = ref(false);
 const lastSupportingData = ref<unknown>(null);
 const lastToolCalls = ref<unknown>(null);
+const chartModal = ref<MetricChartSpec | null>(null);
 
 const canSend = computed(() => input.value.trim().length > 0 && !isSending.value);
 
 const exampleQuestions = [
-  "Tell me all the things you can do",
   "From 2024-01-01 to 2024-12-31, show net income by month.",
   "Compare net income between 2024-Q1 and 2024-Q2.",
   "From 2024-01-01 to 2024-12-31, show revenue_total by quarter.",
+  "From 2024-01-01 to 2024-12-31, break down operating_expense (high level).",
 ] as const;
+
+const METRIC_META: Record<Metric, { title: string; color: string }> = {
+  revenue_total: { title: "Revenue", color: "rgba(94, 234, 212, 0.9)" },
+  cogs_total: { title: "COGS", color: "rgba(251, 113, 133, 0.9)" },
+  gross_profit: { title: "Gross Profit", color: "rgba(96, 165, 250, 0.9)" },
+  operating_expenses_total: { title: "Operating Expenses", color: "rgba(251, 191, 36, 0.9)" },
+  operating_profit: { title: "Operating Profit", color: "rgba(167, 139, 250, 0.9)" },
+  non_operating_revenue_total: { title: "Non-operating Revenue", color: "rgba(52, 211, 153, 0.9)" },
+  non_operating_expenses_total: { title: "Non-operating Expenses", color: "rgba(249, 115, 22, 0.9)" },
+  taxes_total: { title: "Taxes", color: "rgba(244, 114, 182, 0.9)" },
+  net_income: { title: "Net Income", color: "rgba(34, 197, 94, 0.9)" },
+};
+
+function extractMetricCharts(supportingData: unknown): MetricChartSpec[] {
+  const charts: MetricChartSpec[] = [];
+
+  const metrics = (supportingData as any)?.metrics;
+  if (Array.isArray(metrics)) {
+    for (const m of metrics) {
+      const metric = (m as any)?.metric;
+      if (typeof metric !== "string") continue;
+      if (!Object.prototype.hasOwnProperty.call(METRIC_META, metric)) continue;
+      const meta = METRIC_META[metric as Metric];
+      const data = m as MetricChartSpec["data"];
+      if (!Array.isArray(data?.series) || data.series.length === 0) continue;
+      charts.push({
+        kind: "metric_timeseries",
+        metric: metric as Metric,
+        title: meta.title,
+        color: meta.color,
+        type: "line",
+        data,
+      });
+    }
+  }
+
+  const comparisons = (supportingData as any)?.comparisons;
+  if (Array.isArray(comparisons)) {
+    for (const c of comparisons) {
+      const metric = (c as any)?.metric;
+      if (typeof metric !== "string") continue;
+      if (!Object.prototype.hasOwnProperty.call(METRIC_META, metric)) continue;
+      const periodA = String((c as any)?.period_a ?? "");
+      const periodB = String((c as any)?.period_b ?? "");
+      const aValue = Number((c as any)?.a_value);
+      const bValue = Number((c as any)?.b_value);
+      if (!periodA || !periodB) continue;
+      if (!Number.isFinite(aValue) || !Number.isFinite(bValue)) continue;
+
+      const meta = METRIC_META[metric as Metric];
+      const data: MetricChartSpec["data"] = {
+        metric,
+        total: bValue,
+        series: [
+          { period: periodA, value: aValue },
+          { period: periodB, value: bValue },
+        ],
+        currency: (c as any)?.currency ?? null,
+      };
+      charts.push({
+        kind: "metric_timeseries",
+        metric: metric as Metric,
+        title: meta.title,
+        color: meta.color,
+        type: "line",
+        data,
+      });
+    }
+  }
+  return charts;
+}
 
 async function useExample(q: string) {
   input.value = q;
@@ -42,7 +115,8 @@ async function send() {
     const res = await chat(sessionId.value, text);
     sessionId.value = res.session_id;
     localStorage.setItem("fia_session_id", res.session_id);
-    messages.value.push({ role: "assistant", content: res.answer });
+    const charts = extractMetricCharts(res.supporting_data);
+    messages.value.push({ role: "assistant", content: res.answer, charts: charts.length ? charts : undefined });
     lastSupportingData.value = res.supporting_data ?? null;
     lastToolCalls.value = res.tool_calls ?? null;
   } catch (e) {
@@ -66,7 +140,7 @@ async function runIngest() {
 </script>
 
 <template>
-  <div class="layout">
+  <div class="layout" :class="{ withAside: showData }">
     <section class="left panel">
       <div class="toolbar">
         <button class="btn" :disabled="isSending" @click="runIngest">Ingest bundled JSON</button>
@@ -84,7 +158,7 @@ async function runIngest() {
 
       <div v-if="error" class="error panel">{{ error }}</div>
 
-      <ChatThread :messages="messages" />
+      <ChatThread :messages="messages" @open-chart="chartModal = $event" />
 
       <div class="composer">
         <textarea
@@ -104,6 +178,20 @@ async function runIngest() {
       <div class="sideTitle">Fetched data (tool outputs)</div>
       <pre class="json">{{ JSON.stringify(lastSupportingData, null, 2) }}</pre>
     </aside>
+
+    <ChartModal :open="chartModal !== null" :title="chartModal?.metric ?? ''" @close="chartModal = null">
+      <div v-if="chartModal && chartModal.data.series.length">
+        <MetricChart
+          :title="chartModal.title"
+          :labels="chartModal.data.series.map((s) => s.period)"
+          :values="chartModal.data.series.map((s) => s.value)"
+          :type="chartModal.type"
+          :color="chartModal.color"
+          :height="560"
+        />
+      </div>
+      <div v-else class="muted">No data available for this metric.</div>
+    </ChartModal>
   </div>
 </template>
 
@@ -115,12 +203,13 @@ async function runIngest() {
 }
 
 @media (min-width: 980px) {
-  .layout {
-    grid-template-columns: 1fr 420px;
+  .layout.withAside {
+    grid-template-columns: minmax(0, 1fr) 420px;
   }
 }
 
 .left {
+  min-width: 0;
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -179,6 +268,7 @@ async function runIngest() {
 }
 
 .right {
+  min-width: 0;
   padding: 14px;
   overflow: auto;
 }

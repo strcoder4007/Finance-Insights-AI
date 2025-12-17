@@ -1,7 +1,12 @@
 <script setup lang="ts">
-type ChatMessage = { role: "user" | "assistant"; content: string };
+import type { ChatMessage, MetricChartSpec } from "../types/chat";
+import MetricChart from "./MetricChart.vue";
 
 defineProps<{ messages: ChatMessage[] }>();
+
+const emit = defineEmits<{
+  (e: "open-chart", chart: MetricChartSpec): void;
+}>();
 </script>
 
 <template>
@@ -10,6 +15,23 @@ defineProps<{ messages: ChatMessage[] }>();
     <div v-for="(m, idx) in messages" :key="idx" class="msg" :class="m.role">
       <div class="role">{{ m.role === "user" ? "You" : "AI" }}</div>
       <div class="content">{{ m.content }}</div>
+
+      <div v-if="m.role === 'assistant' && m.charts && m.charts.length" class="charts">
+        <div v-for="c in m.charts" :key="`${idx}-${c.metric}`" class="chartCard">
+          <div class="chartHeader">
+            <div class="chartTitle">{{ c.metric }}</div>
+            <button class="btn" type="button" @click="emit('open-chart', c)">Full screen</button>
+          </div>
+          <MetricChart
+            :title="c.title"
+            :labels="c.data.series.map((s) => s.period)"
+            :values="c.data.series.map((s) => s.value)"
+            :type="c.type"
+            :color="c.color"
+            :height="190"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -50,5 +72,32 @@ defineProps<{ messages: ChatMessage[] }>();
   white-space: pre-wrap;
   line-height: 1.35;
 }
-</style>
 
+.charts {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chartCard {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 10px 0;
+}
+
+.chartTitle {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+</style>
