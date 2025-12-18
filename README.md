@@ -15,6 +15,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+## OpenAI API key (required for chat)
+
+The NLQ chat endpoint (`POST /api/v1/chat`) requires an OpenAI API key.
+
+Create `backend/.env` from the example and set `OPENAI_API_KEY`:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Then edit `backend/.env` and set:
+```bash
+OPENAI_API_KEY=your_key_here
+```
+
 ## Quick start (data)(optional if app.db already present)
 Ingest bundled data if app.db is not generated yet:
 
